@@ -1,1359 +1,409 @@
-import tkinter as tk
-from tkinter import ttk
-import math
-import os
-import threading
-import queue
-import random
+import math, queue, random, threading, tkinter as tk
 from dataclasses import dataclass
+from tkinter import ttk
 
+# ---------- Config ----------
+MAP, CW, CH = 11000, 800, 680
+SIM_TIME, SPEED, RESPAWN = 300.0, 470.0, 60.0
+FRAME_MS, TIME_SCALE = 40, 8.0
+DAMAGE_MIN, DAMAGE_MAX, DAMAGE_DEFAULT = 50, 1000, 500
 
-# ============================================================
-# CONFIGURATION
-# ============================================================
+HP = {"SMALL": 500, "MEDIUM": 900, "LARGE": 1500, "ANCIENT": 3000}
+COLOR = {"SMALL": "#22c55e", "MEDIUM": "#facc15",
+         "LARGE": "#ef4444", "ANCIENT": "#a855f7"}
 
-MAP_SIZE = 11000
+EPISODES, BUCKET = 12000, 5.0
+ALPHA, GAMMA = 0.15, 0.98
+EPS_START, EPS_MIN, EPS_DECAY = 1.0, 0.05, 0.9995
 
-SIMULATION_TIME = 300.0        # 5 simulated minutes
-TIME_MULTIPLIER = 8.0          # GUI runs 8x faster than real time
-FRAME_MS = 40
+CAMPS = [
+    ("R-A1",2100,7100,"ANCIENT"), ("R-A2",3900,8200,"ANCIENT"),
+    ("R-L1",2500,5900,"LARGE"),   ("R-L2",4200,6200,"LARGE"),
+    ("R-L3",5200,7300,"LARGE"),   ("R-L4",6500,7800,"LARGE"),
+    ("R-L5",7600,9000,"LARGE"),   ("R-M1",1500,5000,"MEDIUM"),
+    ("R-M2",3300,5300,"MEDIUM"),  ("R-M3",4700,5700,"MEDIUM"),
+    ("R-M4",5900,6700,"MEDIUM"),  ("R-M5",7200,8200,"MEDIUM"),
+    ("R-S1",1800,4200,"SMALL"),   ("R-S2",3400,4400,"SMALL"),
 
-HERO_SPEED = 300.0
-
-MIN_DAMAGE = 50
-MAX_DAMAGE = 300
-INITIAL_DAMAGE = 100
-
-ATTACK_INTERVAL = 1.0
-
-CAMP_RESPAWN = 60.0
-CREEP_GOLD = 100
-CREEP_XP = 100
-
-# Combat duration by camp tier.
-# Ancient is intentionally much slower.
-CAMP_HP = {
-    "SMALL": 500,
-    "MEDIUM": 900,
-    "LARGE": 1500,
-    "ANCIENT": 3000,
-}
-
-CAMP_COLORS = {
-    "SMALL": "#22c55e",
-    "MEDIUM": "#facc15",
-    "LARGE": "#ef4444",
-    "ANCIENT": "#a855f7",
-}
-
-CAMP_LABELS = {
-    "SMALL": "Small",
-    "MEDIUM": "Medium",
-    "LARGE": "Large",
-    "ANCIENT": "Ancient",
-}
-
-# Reinforcement Learning
-TRAIN_EPISODES = 12000
-TIME_BUCKET = 5.0
-LEARNING_RATE = 0.15
-DISCOUNT = 0.98
-EPSILON_START = 1.0
-EPSILON_MIN = 0.05
-EPSILON_DECAY = 0.9995
-
-# Steam CDN Puck icon
-
-def load_puck(self):
-    # İnternet gerektirmeyen basit Puck benzeri PNG üretimi.
-    # Tkinter kendi içinde bu PNG'yi yükleyebilir.
-
-    import base64
-
-    puck_png = (
-        "iVBORw0KGgoAAAANSUhEUgAAACAAAAAgCAYAAABzenr0AAAACXBIWXMA"
-        "AAsTAAALEwEAmpwYAAABM0lEQVR4nO2WsUoDQRRFz8xM7S2CkV9F"
-        "i1gQhY3Y2NnY2JjY2FhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFh"
-        "YWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFh"
-        "YWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFh"
-        "YWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFh"
-        "YWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFh"
-        "YWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFh"
-        "YWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFh"
-        "YWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFh"
-        "YWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFh"
-        "YWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFh"
-        "YWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFh"
-        "YWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFh"
-        "YWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFh"
-        "YWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFh"
-        "YWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFh"
-        "YWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFh"
-        "YWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFh"
-        "YWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFh"
-        "YWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFh"
-        "YWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFh"
-        "YWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFh"
-        "YWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFh"
-        "YWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFh"
-        "YWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFh"
-        "YWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFh"
-        "YWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFh"
-        "YWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFh"
-        "YWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFh"
-        "YWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFh"
-        "YWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFh"
-        "YWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFh"
-        "YWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFh"
-        "YWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFh"
-        "YWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFh"
-        "YWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFh"
-        "YWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFh"
-        "YWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFh"
-        "YWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFh"
-        "YWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFh"
-    )
-
-    try:
-        data = base64.b64decode(puck_png)
-        self.puck_image = tk.PhotoImage(data=data)
-
-        if self.puck_image.width() > 40:
-            factor = max(
-                1,
-                math.ceil(self.puck_image.width() / 40)
-            )
-
-            self.puck_image = self.puck_image.subsample(
-                factor,
-                factor
-            )
-
-    except Exception:
-        self.puck_image = None
-
-# ============================================================
-# DATA MODELS
-# ============================================================
+    ("D-A1",7200,2800,"ANCIENT"), ("D-A2",8800,3900,"ANCIENT"),
+    ("D-L1",7600,1800,"LARGE"),   ("D-L2",6000,2200,"LARGE"),
+    ("D-L3",8300,2300,"LARGE"),   ("D-L4",6900,3400,"LARGE"),
+    ("D-L5",8700,5000,"LARGE"),   ("D-M1",5800,1400,"MEDIUM"),
+    ("D-M2",6800,1700,"MEDIUM"),  ("D-M3",5100,2500,"MEDIUM"),
+    ("D-M4",7800,3100,"MEDIUM"),  ("D-M5",9000,4200,"MEDIUM"),
+    ("D-S1",6500,1200,"SMALL"),   ("D-S2",8200,1500,"SMALL"),
+]
 
 @dataclass
 class Camp:
-    camp_id: str
+    name: str
     x: float
     y: float
     tier: str
-    available_at: float = 0.0
-    alive: bool = True
+    ready: float = 0.0
 
+def new_camps():
+    return [Camp(*c) for c in CAMPS]
 
-@dataclass
-class Hero:
-    x: float
-    y: float
-    gold: int = 0
-    xp: int = 0
-    camps_killed: int = 0
-    score: float = 0.0
+def distance(a, b, c, d):
+    return math.hypot(c-a, d-b)
 
+def fight_time(tier, damage):
+    return math.ceil(HP[tier] / damage)
 
-# ============================================================
-# MAP
-# ============================================================
+def mask(camps, t):
+    m = 0
+    for i, c in enumerate(camps):
+        if t >= c.ready:
+            m |= 1 << i
+    return m
 
-def create_camps():
-    """
-    Approximate overhead Dota-style camp coordinates.
-    These are intentionally simplified for the simulator:
-    no trees, cliffs, wards, blockers or terrain collision.
-    """
-
-    return [
-        # ---------------- RADIANT ----------------
-        Camp("R-A1", 2100, 7100, "ANCIENT"),
-        Camp("R-A2", 3900, 8200, "ANCIENT"),
-
-        Camp("R-L1", 2500, 5900, "LARGE"),
-        Camp("R-L2", 4200, 6200, "LARGE"),
-        Camp("R-L3", 5200, 7300, "LARGE"),
-        Camp("R-L4", 6500, 7800, "LARGE"),
-        Camp("R-L5", 7600, 9000, "LARGE"),
-
-        Camp("R-M1", 1500, 5000, "MEDIUM"),
-        Camp("R-M2", 3300, 5300, "MEDIUM"),
-        Camp("R-M3", 4700, 5700, "MEDIUM"),
-        Camp("R-M4", 5900, 6700, "MEDIUM"),
-        Camp("R-M5", 7200, 8200, "MEDIUM"),
-
-        Camp("R-S1", 1800, 4200, "SMALL"),
-        Camp("R-S2", 3400, 4400, "SMALL"),
-
-        # ---------------- DIRE ----------------
-        Camp("D-A1", 7200, 2800, "ANCIENT"),
-        Camp("D-A2", 8800, 3900, "ANCIENT"),
-
-        Camp("D-L1", 7600, 1800, "LARGE"),
-        Camp("D-L2", 6000, 2200, "LARGE"),
-        Camp("D-L3", 8300, 2300, "LARGE"),
-        Camp("D-L4", 6900, 3400, "LARGE"),
-        Camp("D-L5", 8700, 5000, "LARGE"),
-
-        Camp("D-M1", 5800, 1400, "MEDIUM"),
-        Camp("D-M2", 6800, 1700, "MEDIUM"),
-        Camp("D-M3", 5100, 2500, "MEDIUM"),
-        Camp("D-M4", 7800, 3100, "MEDIUM"),
-        Camp("D-M5", 9000, 4200, "MEDIUM"),
-
-        Camp("D-S1", 6500, 1200, "SMALL"),
-        Camp("D-S2", 8200, 1500, "SMALL"),
-    ]
-
-
-# ============================================================
-# HELPERS
-# ============================================================
-
-def distance(x1, y1, x2, y2):
-    return math.hypot(x2 - x1, y2 - y1)
-
-
-def travel_time(hero_x, hero_y, camp):
-    return distance(hero_x, hero_y, camp.x, camp.y) / HERO_SPEED
-
-
-def combat_time(camp_tier, damage):
-    hp = CAMP_HP[camp_tier]
-    attacks = math.ceil(hp / max(1, damage))
-    return attacks * ATTACK_INTERVAL
-
-
-def nearest_available_camp(hero_x, hero_y, camps, current_time):
-    available = [
-        camp for camp in camps
-        if camp.alive and camp.available_at <= current_time
-    ]
-
-    if not available:
-        return None
-
-    return min(
-        available,
-        key=lambda camp: distance(hero_x, hero_y, camp.x, camp.y)
-    )
-
-
-def available_mask(camps, current_time):
-    mask = 0
-    for i, camp in enumerate(camps):
-        if camp.alive and camp.available_at <= current_time:
-            mask |= (1 << i)
-    return mask
-
-
-# ============================================================
-# RL ENVIRONMENT
-# ============================================================
-
-class FarmingEnvironment:
-    """
-    Discrete reinforcement-learning environment.
-
-    State:
-        current camp/location index
-        time bucket
-        camp availability bitmask
-
-    Action:
-        choose one of the 28 camps
-
-    Reward:
-        +100 gold when a camp is fully cleared.
-
-    The episode lasts 120 simulated seconds.
-    """
-
+# ---------- RL environment ----------
+class Env:
     def __init__(self, damage):
-        self.damage = int(damage)
-        self.num_camps = len(create_camps())
+        self.damage = damage
         self.reset()
 
     def reset(self):
-        self.camps = create_camps()
-        self.hero_x = 1000.0
-        self.hero_y = 9500.0
-        self.current_time = 0.0
-        self.current_location = -1
+        self.camps = new_camps()
+        self.x, self.y, self.t, self.last = 1000.0, 9500.0, 0.0, -1
+        return self.state()
 
     def state(self):
-        bucket = int(self.current_time / TIME_BUCKET)
-        mask = available_mask(self.camps, self.current_time)
-        return (
-            self.current_location,
-            bucket,
-            mask,
-        )
+        return self.last, int(self.t / BUCKET), mask(self.camps, self.t)
 
-    def valid_actions(self):
-        return [
-            i for i, camp in enumerate(self.camps)
-            if camp.alive and camp.available_at <= self.current_time
-        ]
+    def actions(self):
+        return [i for i,c in enumerate(self.camps) if self.t >= c.ready]
 
-    def step(self, action_index):
-        """
-        Execute one complete decision:
-        travel -> fight -> clear -> respawn scheduling.
-        """
-
-        if self.current_time >= SIMULATION_TIME:
-            return self.state(), 0.0, True
-
-        camp = self.camps[action_index]
-
-        if not (camp.alive and camp.available_at <= self.current_time):
-            # Invalid action. Small penalty and continue.
+    def step(self, i):
+        c = self.camps[i]
+        if self.t < c.ready:
             return self.state(), -5.0, False
 
-        travel = distance(
-            self.hero_x,
-            self.hero_y,
-            camp.x,
-            camp.y
-        ) / HERO_SPEED
-
-        fight = combat_time(camp.tier, self.damage)
-
-        duration = travel + fight
-        finish_time = self.current_time + duration
-
-        # The camp is only cleared if the hero has enough time
-        # to finish the combat before the episode ends.
-        if finish_time > SIMULATION_TIME:
-            self.current_time = SIMULATION_TIME
+        finish = self.t + distance(self.x,self.y,c.x,c.y)/SPEED + fight_time(c.tier,self.damage)
+        if finish > SIM_TIME:
+            self.t = SIM_TIME
             return self.state(), 0.0, True
 
-        self.current_time = finish_time
-        self.hero_x = camp.x
-        self.hero_y = camp.y
-        self.current_location = action_index
+        self.t, self.x, self.y, self.last = finish, c.x, c.y, i
+        c.ready = self.t + RESPAWN
+        return self.state(), 100.0, False
 
-        camp.alive = False
-        camp.available_at = self.current_time + CAMP_RESPAWN
-
-        reward = float(CREEP_GOLD)
-
-        done = self.current_time >= SIMULATION_TIME
-        return self.state(), reward, done
-
-
-# ============================================================
-# Q-LEARNING AGENT
-# ============================================================
-
-class QLearningAgent:
+# ---------- Q-learning ----------
+class Agent:
     def __init__(self):
-        self.q = {}
-        self.epsilon = EPSILON_START
+        self.q, self.eps = {}, EPS_START
 
-    def value(self, state, action):
-        return self.q.get((state, action), 0.0)
+    def value(self, s, a):
+        return self.q.get((s,a), 0.0)
 
-    def best_action(self, state, valid_actions):
-        if not valid_actions:
-            return None
+    def best(self, s, actions):
+        return max(actions, key=lambda a: self.value(s,a)) if actions else None
 
-        return max(
-            valid_actions,
-            key=lambda action: self.value(state, action)
-        )
+    def choose(self, s, actions):
+        return random.choice(actions) if random.random() < self.eps else self.best(s, actions)
 
-    def choose_action(self, state, valid_actions, training=True):
-        if not valid_actions:
-            return None
+    def learn(self, s, a, r, ns, na):
+        old = self.value(s,a)
+        future = max((self.value(ns,x) for x in na), default=0.0)
+        self.q[(s,a)] = old + ALPHA * (r + GAMMA*future - old)
 
-        if training and random.random() < self.epsilon:
-            return random.choice(valid_actions)
-
-        return self.best_action(state, valid_actions)
-
-    def update(self, state, action, reward, next_state, next_actions):
-        old_q = self.value(state, action)
-
-        if next_actions:
-            next_best = max(
-                self.value(next_state, a)
-                for a in next_actions
-            )
-        else:
-            next_best = 0.0
-
-        new_q = old_q + LEARNING_RATE * (
-            reward + DISCOUNT * next_best - old_q
-        )
-
-        self.q[(state, action)] = new_q
-
-    def decay(self):
-        self.epsilon = max(
-            EPSILON_MIN,
-            self.epsilon * EPSILON_DECAY
-        )
-
-
-# ============================================================
-# TRAINER
-# ============================================================
-
-def train_agent(damage, progress_callback=None):
-    """
-    Train without GUI rendering.
-
-    Returns:
-        QLearningAgent
-        training statistics
-    """
-
-    agent = QLearningAgent()
+def train(damage, callback):
+    agent = Agent()
     scores = []
 
-    for episode in range(TRAIN_EPISODES):
-        env = FarmingEnvironment(damage)
+    for ep in range(EPISODES):
+        env, total = Env(damage), 0.0
+        s = env.state()
 
-        total_reward = 0.0
-        state = env.state()
-
-        while env.current_time < SIMULATION_TIME:
-
-            actions = env.valid_actions()
-
+        while env.t < SIM_TIME:
+            actions = env.actions()
             if not actions:
                 break
-
-            action = agent.choose_action(
-                state,
-                actions,
-                training=True
-            )
-
-            next_state, reward, done = env.step(action)
-
-            next_actions = (
-                env.valid_actions()
-                if not done else []
-            )
-
-            agent.update(
-                state,
-                action,
-                reward,
-                next_state,
-                next_actions
-            )
-
-            total_reward += reward
-            state = next_state
-
+            a = agent.choose(s, actions)
+            ns, r, done = env.step(a)
+            na = [] if done else env.actions()
+            agent.learn(s, a, r, ns, na)
+            s, total = ns, total + r
             if done:
                 break
 
-        agent.decay()
-        scores.append(total_reward)
+        agent.eps = max(EPS_MIN, agent.eps * EPS_DECAY)
+        scores.append(total)
 
-        if progress_callback and (
-            episode % 100 == 0
-            or episode == TRAIN_EPISODES - 1
-        ):
+        if ep % 100 == 0 or ep == EPISODES-1:
             recent = scores[-100:]
-            avg = sum(recent) / len(recent)
-
-            progress_callback(
-                episode + 1,
-                TRAIN_EPISODES,
-                avg,
-                agent.epsilon,
-                len(agent.q)
-            )
+            callback(ep+1, sum(recent)/len(recent), agent.eps, len(agent.q))
 
     return agent, scores
 
+# ---------- GUI ----------
+class App:
+    BG = "#161616"
 
-# ============================================================
-# GUI SIMULATOR
-# ============================================================
-
-class FarmingSimulator:
     def __init__(self, root):
         self.root = root
-
-        root.title("Dota Jungle Farming Simulator + Reinforcement Learning")
-        root.geometry("1120x720")
+        root.title("Dota Farming RL")
+        root.geometry("1080x700")
         root.resizable(False, False)
 
-        self.sim_time = 0.0
+        self.damage = DAMAGE_DEFAULT
+        self.agent = None
+        self.agent_damage = None
+        self.training = False
         self.running = False
+        self.messages = queue.Queue()
 
-        self.damage = INITIAL_DAMAGE
-
-        self.hero = Hero(
-            x=1000,
-            y=9500
-        )
-
-        self.camps = create_camps()
-        self.target = None
-        self.combat_remaining = 0.0
-
-        self.total_travel = 0.0
-        self.total_combat = 0.0
-
-        self.q_agent = None
-        self.ai_damage = None
-        self.play_mode = "NEAREST"
-
-        self.training_thread = None
-        self.training_queue = queue.Queue()
-        self.training_in_progress = False
-
-        self.puck_image = None
-
-        self.create_gui()
-
-        self.load_puck_image()
+        self.build_ui()
         self.reset()
+        root.after(100, self.poll_training)
 
-    # --------------------------------------------------------
-    # GUI
-    # --------------------------------------------------------
-
-    def create_gui(self):
-        main = tk.Frame(self.root, bg="#111111")
+    def build_ui(self):
+        main = tk.Frame(self.root, bg="#111")
         main.pack(fill="both", expand=True)
 
-        self.canvas = tk.Canvas(
-            main,
-            width=810,
-            height=690,
-            bg="#234d29",
-            highlightthickness=0
-        )
-        self.canvas.pack(
-            side="left",
-            padx=(10, 5),
-            pady=10
-        )
+        self.canvas = tk.Canvas(main, width=CW, height=CH, bg="#234d29", highlightthickness=0)
+        self.canvas.pack(side="left", padx=10, pady=10)
 
-        panel = tk.Frame(
-            main,
-            width=275,
-            bg="#161616"
-        )
-        panel.pack(
-            side="right",
-            fill="y",
-            padx=(5, 10),
-            pady=10
-        )
+        panel = tk.Frame(main, width=240, bg=self.BG)
+        panel.pack(side="right", fill="y", padx=10, pady=10)
 
-        tk.Label(
-            panel,
-            text="DOTA FARMING",
-            font=("Arial", 18, "bold"),
-            fg="white",
-            bg="#161616"
-        ).pack(pady=(16, 10))
+        def label(text, **kw):
+            return tk.Label(panel, text=text, bg=self.BG, fg=kw.pop("fg","white"), **kw)
 
-        # Damage
-        tk.Label(
-            panel,
-            text="Hero Damage",
-            font=("Arial", 11, "bold"),
-            fg="white",
-            bg="#161616"
-        ).pack()
+        label("DOTA FARMING", font=("Arial",18,"bold")).pack(pady=12)
+        label("Hero Damage").pack()
+        self.damage_label = label(str(self.damage), fg="#7dd3fc", font=("Arial",18,"bold"))
+        self.damage_label.pack()
 
-        self.damage_value = tk.Label(
-            panel,
-            text=str(self.damage),
-            font=("Arial", 20, "bold"),
-            fg="#7dd3fc",
-            bg="#161616"
-        )
-        self.damage_value.pack(pady=3)
+        self.slider = tk.Scale(panel, from_=DAMAGE_MIN, to=DAMAGE_MAX, orient="horizontal",
+                               showvalue=False, command=self.change_damage,
+                               bg=self.BG, fg="white", highlightthickness=0)
+        self.slider.set(self.damage)
+        self.slider.pack()
 
-        self.damage_slider = tk.Scale(
-            panel,
-            from_=MIN_DAMAGE,
-            to=MAX_DAMAGE,
-            orient="horizontal",
-            length=200,
-            showvalue=False,
-            command=self.change_damage,
-            bg="#161616",
-            fg="white",
-            troughcolor="#333333",
-            highlightthickness=0
-        )
-        self.damage_slider.set(INITIAL_DAMAGE)
-        self.damage_slider.pack()
+        self.mode = tk.StringVar(value="NEAREST")
+        for text, value in [("Nearest Camp","NEAREST"), ("Learned AI","AI")]:
+            b = tk.Radiobutton(panel, text=text, value=value, variable=self.mode,
+                               bg=self.BG, fg="white", selectcolor="#333",
+                               activebackground=self.BG, activeforeground="white")
+            b.pack(anchor="w", padx=25)
+            if value == "AI":
+                self.ai_button = b
+                b.config(state="disabled")
 
-        # Mode
-        tk.Label(
-            panel,
-            text="Decision Mode",
-            font=("Arial", 11, "bold"),
-            fg="white",
-            bg="#161616"
-        ).pack(pady=(10, 3))
+        tk.Button(panel, text="START", width=20, command=self.start).pack(pady=(10,2))
+        tk.Button(panel, text="RESET", width=20, command=self.reset).pack(pady=2)
+        self.train_button = tk.Button(panel, text="TRAIN AI", width=20, command=self.start_training)
+        self.train_button.pack(pady=2)
 
-        self.mode_var = tk.StringVar(value="NEAREST")
+        self.train_label = label("AI: not trained", fg="#facc15", wraplength=220)
+        self.train_label.pack(pady=8)
 
-        tk.Radiobutton(
-            panel,
-            text="Nearest Camp (baseline)",
-            variable=self.mode_var,
-            value="NEAREST",
-            command=self.change_mode,
-            bg="#161616",
-            fg="white",
-            selectcolor="#333333",
-            activebackground="#161616",
-            activeforeground="white"
-        ).pack(anchor="w", padx=18)
+        self.progress = ttk.Progressbar(panel, length=210, maximum=EPISODES)
+        self.progress.pack()
 
-        self.ai_radio = tk.Radiobutton(
-            panel,
-            text="Learned AI",
-            variable=self.mode_var,
-            value="AI",
-            command=self.change_mode,
-            bg="#161616",
-            fg="white",
-            selectcolor="#333333",
-            activebackground="#161616",
-            activeforeground="white",
-            state="disabled"
-        )
-        self.ai_radio.pack(anchor="w", padx=18)
+        label("STATS", font=("Arial",11,"bold")).pack(pady=(12,4))
+        self.stats = {}
+        for name in ("Time","Gold","Camps","GPM","Target"):
+            row = tk.Frame(panel, bg=self.BG)
+            row.pack(fill="x", padx=18)
+            tk.Label(row, text=name, bg=self.BG, fg="#aaa").pack(side="left")
+            value = tk.Label(row, text="0", bg=self.BG, fg="white")
+            value.pack(side="right")
+            self.stats[name] = value
 
-        # Buttons
-        self.start_button = tk.Button(
-            panel,
-            text="START",
-            width=20,
-            command=self.start
-        )
-        self.start_button.pack(pady=(12, 5))
-
-        self.reset_button = tk.Button(
-            panel,
-            text="RESET",
-            width=20,
-            command=self.reset
-        )
-        self.reset_button.pack(pady=2)
-
-        self.train_button = tk.Button(
-            panel,
-            text="TRAIN AI",
-            width=20,
-            command=self.start_training
-        )
-        self.train_button.pack(pady=(5, 2))
-
-        # Training status
-        self.training_label = tk.Label(
-            panel,
-            text="AI: not trained",
-            font=("Arial", 9, "bold"),
-            fg="#facc15",
-            bg="#161616",
-            wraplength=235
-        )
-        self.training_label.pack(pady=(4, 8))
-
-        # Divider
-        tk.Label(
-            panel,
-            text="CAMP TYPES",
-            font=("Arial", 11, "bold"),
-            fg="white",
-            bg="#161616"
-        ).pack(pady=(4, 6))
-
-        self.create_legend(panel, "ANCIENT")
-        self.create_legend(panel, "LARGE")
-        self.create_legend(panel, "MEDIUM")
-        self.create_legend(panel, "SMALL")
-
-        # Stats
-        tk.Label(
-            panel,
-            text="STATS",
-            font=("Arial", 11, "bold"),
-            fg="white",
-            bg="#161616"
-        ).pack(pady=(10, 5))
-
-        self.time_label = self.create_stat(panel, "Time")
-        self.gold_label = self.create_stat(panel, "Gold")
-        self.xp_label = self.create_stat(panel, "XP")
-        self.camp_label = self.create_stat(panel, "Camps")
-        self.score_label = self.create_stat(panel, "Score")
-        self.gpm_label = self.create_stat(panel, "GPM")
-        self.target_label = self.create_stat(panel, "Target")
-
-        self.status_label = tk.Label(
-            panel,
-            text="READY",
-            font=("Arial", 10, "bold"),
-            fg="#22c55e",
-            bg="#161616",
-            wraplength=235
-        )
-        self.status_label.pack(pady=12)
-
-        # Training progress
-        self.progress = ttk.Progressbar(
-            panel,
-            orient="horizontal",
-            length=220,
-            mode="determinate",
-            maximum=TRAIN_EPISODES
-        )
-        self.progress.pack(pady=(0, 5))
-
-        self.root.after(100, self.poll_training_queue)
-
-    def create_legend(self, parent, tier):
-        row = tk.Frame(parent, bg="#161616")
-        row.pack(fill="x", padx=25, pady=1)
-
-        swatch = tk.Canvas(
-            row,
-            width=14,
-            height=14,
-            bg="#161616",
-            highlightthickness=0
-        )
-        swatch.pack(side="left", padx=(0, 7))
-
-        swatch.create_oval(
-            2, 2, 12, 12,
-            fill=CAMP_COLORS[tier],
-            outline="white"
-        )
-
-        tk.Label(
-            row,
-            text=CAMP_LABELS[tier],
-            fg="white",
-            bg="#161616",
-            anchor="w"
-        ).pack(side="left")
-
-        hp = CAMP_HP[tier]
-        tk.Label(
-            row,
-            text=f"{hp} HP",
-            fg="#999999",
-            bg="#161616",
-            anchor="e"
-        ).pack(side="right")
-
-    def create_stat(self, parent, name):
-        row = tk.Frame(parent, bg="#161616")
-        row.pack(fill="x", padx=18, pady=1)
-
-        tk.Label(
-            row,
-            text=name,
-            fg="#aaaaaa",
-            bg="#161616"
-        ).pack(side="left")
-
-        value = tk.Label(
-            row,
-            text="0",
-            fg="white",
-            bg="#161616"
-        )
-        value.pack(side="right")
-
-        return value
-
-    # --------------------------------------------------------
-    # Puck icon
-    # --------------------------------------------------------
-
-    def load_puck_image(self):
-        try:
-            if not os.path.exists(PUCK_FILE):
-                urllib.request.urlretrieve(PUCK_URL, PUCK_FILE)
-
-            self.puck_image = tk.PhotoImage(file=PUCK_FILE)
-
-            # Keep the sprite compact.
-            w = self.puck_image.width()
-            if w > 48:
-                factor = max(1, math.ceil(w / 40))
-                self.puck_image = self.puck_image.subsample(
-                    factor,
-                    factor
-                )
-        except Exception:
-            self.puck_image = None
-
-    # --------------------------------------------------------
-    # User controls
-    # --------------------------------------------------------
+        self.status = label("READY", fg="#22c55e", font=("Arial",10,"bold"))
+        self.status.pack(pady=12)
 
     def change_damage(self, value):
-        new_damage = int(float(value))
-        self.damage = new_damage
-        self.damage_value.config(text=str(new_damage))
-
-        # A model trained for a different damage value is not valid.
-        if self.ai_damage != self.damage:
-            self.ai_radio.config(state="disabled")
-            if self.mode_var.get() == "AI":
-                self.mode_var.set("NEAREST")
-                self.play_mode = "NEAREST"
-
-            if self.q_agent is not None:
-                self.training_label.config(
-                    text=(
-                        f"AI model trained at {self.ai_damage} damage. "
-                        f"Retrain for {self.damage}."
-                    ),
-                    fg="#facc15"
-                )
-        else:
-            if self.q_agent is not None:
-                self.ai_radio.config(state="normal")
-
-    def change_mode(self):
-        self.play_mode = self.mode_var.get()
-
-    # --------------------------------------------------------
-    # Reset / start
-    # --------------------------------------------------------
+        self.damage = int(float(value))
+        self.damage_label.config(text=str(self.damage))
+        valid = self.agent is not None and self.agent_damage == self.damage
+        self.ai_button.config(state="normal" if valid else "disabled")
+        if not valid and self.mode.get() == "AI":
+            self.mode.set("NEAREST")
 
     def reset(self):
         self.running = False
-
-        self.sim_time = 0.0
-
-        self.hero = Hero(
-            x=1000,
-            y=9500
-        )
-
-        self.camps = create_camps()
-
+        self.t = 0.0
+        self.x, self.y, self.last = 1000.0, 9500.0, -1
+        self.gold = self.kills = 0
+        self.camps = new_camps()
         self.target = None
-        self.combat_remaining = 0.0
-
-        self.total_travel = 0.0
-        self.total_combat = 0.0
-
-        self.progress["value"] = 0
-
+        self.phase = "IDLE"
+        self.combat_left = 0.0
         self.update_stats()
-        self.draw_everything()
-
-        if self.training_in_progress:
-            self.status_label.config(
-                text="AI TRAINING RUNS IN BACKGROUND"
-            )
-        else:
-            self.status_label.config(
-                text="READY",
-                fg="#22c55e"
-            )
+        self.draw()
+        self.status.config(text="READY", fg="#22c55e")
 
     def start(self):
-        if self.training_in_progress:
+        if self.running or self.training:
             return
-
-        if self.running:
+        if self.mode.get() == "AI" and (self.agent is None or self.agent_damage != self.damage):
+            self.status.config(text="TRAIN AI FIRST", fg="#facc15")
             return
-
-        if self.play_mode == "AI":
-            if self.q_agent is None or self.ai_damage != self.damage:
-                self.status_label.config(
-                    text="TRAIN AI FIRST",
-                    fg="#facc15"
-                )
-                return
-
         self.running = True
-
-        self.status_label.config(
-            text="RUNNING",
-            fg="#22c55e"
-        )
-
-        self.update()
-
-    # --------------------------------------------------------
-    # AI training
-    # --------------------------------------------------------
+        self.tick()
 
     def start_training(self):
-        if self.training_in_progress:
+        if self.training:
             return
-
-        if self.running:
-            self.running = False
-
-        damage_for_training = self.damage
-
-        self.training_in_progress = True
+        self.running = False
+        self.training = True
+        damage = self.damage
         self.train_button.config(state="disabled")
-        self.ai_radio.config(state="disabled")
-        self.training_label.config(
-            text=f"Training at {damage_for_training} damage...",
-            fg="#38bdf8"
-        )
-
+        self.ai_button.config(state="disabled")
+        self.train_label.config(text=f"Training at {damage} damage...", fg="#38bdf8")
         self.progress["value"] = 0
 
-        self.training_thread = threading.Thread(
-            target=self._training_worker,
-            args=(damage_for_training,),
-            daemon=True
-        )
-        self.training_thread.start()
+        def worker():
+            try:
+                def cb(ep, avg, eps, size):
+                    self.messages.put(("p",ep,avg,eps,size))
+                agent, scores = train(damage, cb)
+                self.messages.put(("d",damage,agent,scores))
+            except Exception as e:
+                self.messages.put(("e",repr(e)))
 
-    def _training_worker(self, damage):
-        try:
-            def callback(ep, total, avg, epsilon, q_size):
-                self.training_queue.put(
-                    ("progress", ep, total, avg, epsilon, q_size)
-                )
+        threading.Thread(target=worker, daemon=True).start()
 
-            agent, scores = train_agent(
-                damage,
-                progress_callback=callback
-            )
-
-            self.training_queue.put(
-                ("done", damage, agent, scores)
-            )
-
-        except Exception as error:
-            self.training_queue.put(
-                ("error", repr(error))
-            )
-
-    def poll_training_queue(self):
+    def poll_training(self):
         try:
             while True:
-                message = self.training_queue.get_nowait()
+                msg = self.messages.get_nowait()
 
-                if message[0] == "progress":
-                    _, ep, total, avg, epsilon, q_size = message
-
-                    self.progress["maximum"] = total
+                if msg[0] == "p":
+                    _, ep, avg, eps, size = msg
                     self.progress["value"] = ep
-
-                    self.training_label.config(
-                        text=(
-                            f"Training {ep}/{total}\n"
-                            f"Avg reward: {avg:.1f}\n"
-                            f"Epsilon: {epsilon:.3f}\n"
-                            f"Q entries: {q_size}"
-                        ),
+                    self.train_label.config(
+                        text=f"{ep}/{EPISODES}\nAvg: {avg:.1f}  ε: {eps:.3f}\nQ: {size}",
                         fg="#38bdf8"
                     )
 
-                elif message[0] == "done":
-                    _, damage, agent, scores = message
-
-                    self.q_agent = agent
-                    self.ai_damage = damage
-
-                    self.training_in_progress = False
+                elif msg[0] == "d":
+                    _, damage, agent, scores = msg
+                    self.agent, self.agent_damage, self.training = agent, damage, False
                     self.train_button.config(state="normal")
-                    self.ai_radio.config(state="normal")
+                    if damage == self.damage:
+                        self.ai_button.config(state="normal")
+                    avg = sum(scores[-100:]) / len(scores[-100:])
+                    self.train_label.config(text=f"AI ready ({damage} dmg)\nAvg reward: {avg:.1f}",
+                                            fg="#22c55e")
 
-                    recent = scores[-100:]
-                    avg = sum(recent) / len(recent)
-
-                    self.training_label.config(
-                        text=(
-                            f"AI trained at {damage} damage\n"
-                            f"Avg final reward: {avg:.1f}\n"
-                            f"Q entries: {len(agent.q)}"
-                        ),
-                        fg="#22c55e"
-                    )
-
-                    self.status_label.config(
-                        text="AI READY",
-                        fg="#22c55e"
-                    )
-
-                elif message[0] == "error":
-                    self.training_in_progress = False
+                else:
+                    self.training = False
                     self.train_button.config(state="normal")
-                    self.training_label.config(
-                        text=f"Training error: {message[1]}",
-                        fg="#ef4444"
-                    )
-
+                    self.train_label.config(text=f"Error: {msg[1]}", fg="#ef4444")
         except queue.Empty:
             pass
 
-        self.root.after(100, self.poll_training_queue)
+        self.root.after(100, self.poll_training)
 
-    # --------------------------------------------------------
-    # Target selection
-    # --------------------------------------------------------
+    def state(self):
+        return self.last, int(self.t/BUCKET), mask(self.camps,self.t)
 
-    def current_state(self):
-        bucket = int(self.sim_time / TIME_BUCKET)
-        mask = available_mask(self.camps, self.sim_time)
-
-        if self.target is None:
-            current_location = -1
-        else:
-            current_location = self.camps.index(self.target)
-
-        return (
-            current_location,
-            bucket,
-            mask
-        )
+    def available(self):
+        return [i for i,c in enumerate(self.camps) if self.t >= c.ready]
 
     def choose_target(self):
-        available = [
-            (i, camp)
-            for i, camp in enumerate(self.camps)
-            if camp.alive and camp.available_at <= self.sim_time
-        ]
-
-        if not available:
+        actions = self.available()
+        if not actions:
             return None
+        if self.mode.get() == "AI":
+            return self.agent.best(self.state(), actions)
+        return min(actions, key=lambda i: distance(self.x,self.y,self.camps[i].x,self.camps[i].y))
 
-        # --------------------------------------------
-        # Learned AI
-        # --------------------------------------------
-        if (
-            self.play_mode == "AI"
-            and self.q_agent is not None
-            and self.ai_damage == self.damage
-        ):
-            state = self.current_state()
-
-            action = self.q_agent.best_action(
-                state,
-                [i for i, _ in available]
-            )
-
-            if action is not None:
-                return self.camps[action]
-
-        # --------------------------------------------
-        # Baseline: nearest camp
-        # --------------------------------------------
-        return min(
-            (camp for _, camp in available),
-            key=lambda camp: distance(
-                self.hero.x,
-                self.hero.y,
-                camp.x,
-                camp.y
-            )
-        )
-
-    # --------------------------------------------------------
-    # Combat / finish
-    # --------------------------------------------------------
-
-    def start_combat(self):
-        if self.target is None:
-            return
-
-        self.combat_remaining = combat_time(
-            self.target.tier,
-            self.damage
-        )
-
-        self.status_label.config(
-            text=f"FIGHTING {self.target.camp_id}",
-            fg="#ef4444"
-        )
-
-    def finish_camp(self):
-        if self.target is None:
-            return
-
-        camp = self.target
-
-        camp.alive = False
-        camp.available_at = self.sim_time + CAMP_RESPAWN
-
-        self.hero.gold += CREEP_GOLD
-        self.hero.xp += CREEP_XP
-        self.hero.camps_killed += 1
-        self.hero.score += CREEP_GOLD
-
-        self.target = None
-        self.combat_remaining = 0.0
-
-        self.status_label.config(
-            text="CHOOSING NEXT CAMP",
-            fg="#facc15"
-        )
-
-    # --------------------------------------------------------
-    # Simulation
-    # --------------------------------------------------------
-
-    def update(self):
+    def tick(self):
         if not self.running:
             return
 
-        real_seconds = FRAME_MS / 1000.0
-        sim_delta = real_seconds * TIME_MULTIPLIER
-        remaining = sim_delta
+        remaining = FRAME_MS/1000 * TIME_SCALE
 
-        while remaining > 0:
-            step = min(remaining, 0.05)
-            self.sim_time += step
+        while remaining > 0 and self.t < SIM_TIME:
+            dt = min(0.05, remaining)
 
             if self.target is None:
                 self.target = self.choose_target()
-
                 if self.target is None:
-                    remaining -= step
+                    self.t += dt
+                    remaining -= dt
                     continue
+                self.phase = "MOVE"
 
-                self.status_label.config(
-                    text=f"GOING TO {self.target.camp_id}",
-                    fg="#38bdf8"
-                )
+            c = self.camps[self.target]
 
-            # Movement
-            if self.target is not None and self.combat_remaining <= 0:
-                target = self.target
+            if self.phase == "MOVE":
+                dx, dy = c.x-self.x, c.y-self.y
+                d = math.hypot(dx,dy)
+                move = SPEED*dt
 
-                dx = target.x - self.hero.x
-                dy = target.y - self.hero.y
-                dist = math.hypot(dx, dy)
-
-                if dist > 1:
-                    move_distance = HERO_SPEED * step
-
-                    if move_distance >= dist:
-                        self.hero.x = target.x
-                        self.hero.y = target.y
-                        self.start_combat()
-                    else:
-                        ratio = move_distance / dist
-                        self.hero.x += dx * ratio
-                        self.hero.y += dy * ratio
-
-                    self.total_travel += step
+                if d <= move:
+                    self.x, self.y = c.x, c.y
+                    self.phase = "FIGHT"
+                    self.combat_left = fight_time(c.tier,self.damage)
                 else:
-                    self.start_combat()
+                    self.x += dx/d*move
+                    self.y += dy/d*move
 
-            # Combat
-            if self.combat_remaining > 0:
-                fight_step = min(step, self.combat_remaining)
-                self.combat_remaining -= fight_step
-                self.total_combat += fight_step
+            else:
+                self.combat_left -= dt
+                if self.combat_left <= 0:
+                    c.ready = self.t + RESPAWN
+                    self.gold += 100
+                    self.kills += 1
+                    self.last = self.target
+                    self.target = None
+                    self.phase = "IDLE"
 
-                if self.combat_remaining <= 0:
-                    self.finish_camp()
+            self.t += dt
+            remaining -= dt
 
-            remaining -= step
-
-        # Respawns
-        for camp in self.camps:
-            if (
-                not camp.alive
-                and self.sim_time >= camp.available_at
-            ):
-                camp.alive = True
-
-        # End
-        if self.sim_time >= SIMULATION_TIME:
-            self.sim_time = SIMULATION_TIME
+        if self.t >= SIM_TIME:
+            self.t = SIM_TIME
             self.running = False
-            self.status_label.config(
-                text="FINISHED",
-                fg="#22c55e"
-            )
+            self.status.config(text="FINISHED", fg="#22c55e")
+        else:
+            self.status.config(text="RUNNING", fg="#22c55e")
+            self.root.after(FRAME_MS, self.tick)
 
         self.update_stats()
-        self.draw_everything()
+        self.draw()
 
-        if self.running:
-            self.root.after(FRAME_MS, self.update)
+    def draw(self):
+        c = self.canvas
+        c.delete("all")
+        c.create_rectangle(0,0,CW,CH,fill="#234d29",outline="")
+        c.create_line(0,CH,CW,0,fill="#356b7a",width=38)
 
-    # --------------------------------------------------------
-    # Drawing
-    # --------------------------------------------------------
+        def screen(x,y):
+            return x/MAP*CW, y/MAP*CH
 
-    def world_to_screen(self, x, y):
-        return (
-            (x / MAP_SIZE) * 810,
-            (y / MAP_SIZE) * 690
-        )
-
-    def draw_everything(self):
-        self.canvas.delete("all")
-
-        width = 810
-        height = 690
-
-        # Background
-        self.canvas.create_rectangle(
-            0, 0, width, height,
-            fill="#234d29",
-            outline=""
-        )
-
-        # Simplified river
-        self.canvas.create_line(
-            0, height,
-            width, 0,
-            fill="#356b7a",
-            width=38
-        )
-
-        # Map border
-        self.canvas.create_rectangle(
-            3, 3, width - 3, height - 3,
-            outline="#8a8a8a",
-            width=2
-        )
-
-        # Camps
         for camp in self.camps:
-            sx, sy = self.world_to_screen(camp.x, camp.y)
+            x,y = screen(camp.x,camp.y)
+            fill = COLOR[camp.tier] if self.t >= camp.ready else "#555"
+            c.create_oval(x-8,y-8,x+8,y+8,fill=fill,outline="white")
+            c.create_text(x,y-16,text=camp.name,fill="white",font=("Arial",7))
 
-            if camp.alive:
-                color = CAMP_COLORS[camp.tier]
-            else:
-                color = "#555555"
+        hx,hy = screen(self.x,self.y)
 
-            self.canvas.create_oval(
-                sx - 9, sy - 9,
-                sx + 9, sy + 9,
-                fill=color,
-                outline="white",
-                width=1
-            )
-
-            self.canvas.create_text(
-                sx,
-                sy - 18,
-                text=camp.camp_id,
-                fill="white",
-                font=("Arial", 7)
-            )
-
-        # Target path
         if self.target is not None:
-            tx, ty = self.world_to_screen(
-                self.target.x,
-                self.target.y
-            )
-            hx, hy = self.world_to_screen(
-                self.hero.x,
-                self.hero.y
-            )
+            tx,ty = screen(self.camps[self.target].x,self.camps[self.target].y)
+            c.create_line(hx,hy,tx,ty,fill="white",dash=(4,4))
 
-            self.canvas.create_line(
-                hx, hy, tx, ty,
-                fill="#ffffff",
-                dash=(4, 4),
-                width=2
-            )
-
-        # Puck
-        hx, hy = self.world_to_screen(
-            self.hero.x,
-            self.hero.y
-        )
-
-        if self.puck_image is not None:
-            self.canvas.create_image(
-                hx,
-                hy,
-                image=self.puck_image
-            )
-        else:
-            self.canvas.create_oval(
-                hx - 13, hy - 13,
-                hx + 13, hy + 13,
-                fill="#60a5fa",
-                outline="white",
-                width=2
-            )
-            self.canvas.create_text(
-                hx, hy,
-                text="P",
-                fill="white",
-                font=("Arial", 12, "bold")
-            )
-
-        self.canvas.create_text(
-            hx,
-            hy + 25,
-            text="PUCK",
-            fill="white",
-            font=("Arial", 9, "bold")
-        )
-
-    # --------------------------------------------------------
-    # Stats
-    # --------------------------------------------------------
+        c.create_oval(hx-12,hy-12,hx+12,hy+12,fill="#60a5fa",outline="white")
+        c.create_text(hx,hy,text="P",fill="white",font=("Arial",11,"bold"))
 
     def update_stats(self):
-        self.time_label.config(
-            text=f"{self.sim_time:.1f}s / {SIMULATION_TIME:.0f}s"
+        self.stats["Time"].config(text=f"{self.t:.1f}/{SIM_TIME:.0f}s")
+        self.stats["Gold"].config(text=str(self.gold))
+        self.stats["Camps"].config(text=str(self.kills))
+        self.stats["GPM"].config(text=f"{self.gold/self.t*60:.0f}" if self.t else "0")
+        self.stats["Target"].config(
+            text=self.camps[self.target].name if self.target is not None else "-"
         )
 
-        self.gold_label.config(text=str(self.hero.gold))
-        self.xp_label.config(text=str(self.hero.xp))
-        self.camp_label.config(text=str(self.hero.camps_killed))
-        self.score_label.config(text=f"{self.hero.score:.0f}")
-
-        if self.sim_time > 0:
-            gpm = self.hero.gold / self.sim_time * 60
-        else:
-            gpm = 0
-
-        self.gpm_label.config(text=f"{gpm:.0f}")
-
-        if self.target is not None:
-            self.target_label.config(
-                text=f"{self.target.camp_id} ({self.target.tier})"
-            )
-        else:
-            self.target_label.config(text="-")
-
-
-# ============================================================
-# START
-# ============================================================
-
 if __name__ == "__main__":
     root = tk.Tk()
-    app = FarmingSimulator(root)
-    root.mainloop()
-
-compile(code, '<string>', 'exec')
-print("syntax ok", len(code.splitlines()))
-
-
-print("PROGRAM BASLADI")
-
-if __name__ == "__main__":
-    print("MAIN CALISIYOR")
-    root = tk.Tk()
-    app = FarmingSimulator(root)
+    App(root)
     root.mainloop()
