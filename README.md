@@ -1,3 +1,19 @@
+## Table of Contents
+
+- [Features](#features)
+- [How It Works](#how-it-works)
+- [Simulation](#simulation)
+- [Decision Modes](#decision-modes)
+- [Configuration](#configuration)
+- [Requirements](#requirements)
+- [Running](#running)
+- [Usage](#usage)
+- [Reinforcement Learning](#reinforcement-learning)
+- [Project Goals](#project-goals)
+- [Possible Improvements](#possible-improvements)
+- [Disclaimer](#disclaimer)
+- [License](#license)
+
 # Erkam-nci-BOZ213d01u01
 A Dota-inspired jungle farming simulator using Q-learning to learn and visualize efficient farming routes.
 # Dota Jungle Q-Learning Simulator
