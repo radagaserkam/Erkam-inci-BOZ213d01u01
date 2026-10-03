@@ -1,7 +1,16 @@
 # Erkam-inci-BOZ213d01u01
+
 A Dota-inspired jungle farming simulator using Q-learning to learn and visualize efficient farming routes.
 
-# Dota Farming RL
+## Language
+
+[English](#english) | [Türkçe](#türkçe)
+
+---
+
+# English
+
+## Dota Farming RL
 
 A simple Dota-inspired jungle farming simulator built with Python and Tkinter.
 
@@ -114,13 +123,13 @@ cd Erkam-inci-BOZ213d01u01
 Run the program:
 
 ```bash
-python dota 2 AI train.py
+python "dota 2 AI train.py"
 ```
 
 or:
 
 ```bash
-python3 dota 2 AI train.py
+python3 "dota 2 AI train.py"
 ```
 
 ## Requirements
@@ -188,8 +197,207 @@ Dota and related names are the property of their respective owners.
 This project is not affiliated with or endorsed by Valve Corporation.
 
 ## License
-This project is licensed under the" GNU General Public License v3.0" License.
 
-See the LICENSE file for details.
-This project is licensed under the" GNU General Public License v3.0" License.
+This project is licensed under the **GNU General Public License v3.0 (GPL-3.0)**.
+
 See the `LICENSE` file for details.
+
+---
+
+# Türkçe
+
+## Dota Farming RL
+
+Python ve Tkinter kullanılarak geliştirilmiş, Dota'dan esinlenen basit bir jungle farming simülatörüdür.
+
+Proje, jungle farming rotalarını öğrenmek için **Q-learning** kullanır ve öğrenilmiş stratejiyi basit bir **en yakın kamp sezgiseli** ile karşılaştırır.
+
+Projenin amacı; reinforcement learning, rota seçimi ve oyun yapay zekâsı konularını küçük ve görsel bir simülasyon ortamında deneyimlemektir.
+
+## Özellikler
+
+- Dota'dan esinlenen jungle farming simülasyonu
+- Tabular Q-learning ajanı
+- En yakın kamp tabanlı temel strateji
+- Ayarlanabilir kahraman hasarı
+- Small, Medium, Large ve Ancient kampları
+- Kamp yeniden doğma sistemi
+- Hareket ve savaş süresi simülasyonu
+- Tkinter ile gerçek zamanlı görselleştirme
+- Arka planda AI eğitimi
+- Eğitim ilerleme göstergesi
+- Altın, temizlenen kamp, GPM, süre ve hedef istatistikleri
+
+## Nasıl Çalışır?
+
+Harita, basitleştirilmiş **28 jungle kampından** oluşur.
+
+Her kampın:
+
+- Bir konumu
+- Bir kamp türü
+- Bir can değeri
+- Bir yeniden doğma süresi
+
+vardır.
+
+Kahraman kamplar arasında hareket eder, kampları temizler ve tamamladığı her kamp için **100 gold** kazanır.
+
+Savaş süresi, kahramanın hasarına ve kampın can değerine bağlıdır.
+
+Simülasyon toplam **300 simülasyon saniyesi** sürer.
+
+## Q-Learning
+
+Yapay zekâ, tabular Q-learning kullanır.
+
+State şu şekilde temsil edilir:
+
+```text
+(
+    last_camp,
+    time_bucket,
+    available_camps_mask
+)
+```
+
+Burada:
+
+- `last_camp`, son temizlenen kampı temsil eder.
+- `time_bucket`, mevcut simülasyon zamanını temsil eder.
+- `available_camps_mask`, hangi kampların şu anda kullanılabilir olduğunu temsil eder.
+
+Aksiyon ise basitçe:
+
+```text
+Bir sonraki jungle kampını seç.
+```
+
+Ajan, bir kampı başarıyla temizlediğinde ödül alır.
+
+Q-learning güncelleme formülü:
+
+```text
+Q(s, a) ← Q(s, a) + α [r + γ max Q(s', a') - Q(s, a)]
+```
+
+Varsayılan parametreler:
+
+```python
+EPISODES = 12000
+ALPHA = 0.15
+GAMMA = 0.98
+
+EPS_START = 1.0
+EPS_MIN = 0.05
+EPS_DECAY = 0.9995
+```
+
+Eğitim sırasında epsilon-greedy stratejisi kullanılır.
+
+Bu sayede ajan başlangıçta farklı rotaları keşfeder ve eğitim ilerledikçe öğrendiği kararları daha fazla kullanmaya başlar.
+
+## Karar Modları
+
+### Nearest Camp
+
+Temel strateji, her zaman o anda kullanılabilir olan en yakın kampı seçer.
+
+### Learned AI
+
+Q-learning ajanı, eğitim sırasında öğrendiği Q değerlerine göre bir sonraki kampı seçer.
+
+AI, seçili kahraman hasar değerine göre eğitilir.
+
+Hasar değeri değiştirilirse AI'ın yeniden eğitilmesi gerekir.
+
+## Projeyi Çalıştırma
+
+Repository'yi klonlayın:
+
+```bash
+git clone https://github.com/radagaserkam/Erkam-inci-BOZ213d01u01.git
+cd Erkam-inci-BOZ213d01u01
+```
+
+Programı çalıştırın:
+
+```bash
+python "dota 2 AI train.py"
+```
+
+veya:
+
+```bash
+python3 "dota 2 AI train.py"
+```
+
+## Gereksinimler
+
+- Python 3
+- Tkinter
+
+TensorFlow veya PyTorch gibi herhangi bir machine learning kütüphanesi gerekli değildir.
+
+Reinforcement learning algoritması doğrudan Python ile uygulanmıştır.
+
+> Bazı Linux dağıtımlarında Tkinter'ın ayrıca kurulması gerekebilir.
+
+## Kullanım
+
+1. Programı başlatın.
+2. Kahramanın hasar değerini seçin.
+3. Temel stratejiyi görmek için **Nearest Camp** modunu çalıştırın.
+4. **Train AI** butonuna basın.
+5. Q-learning eğitiminin tamamlanmasını bekleyin.
+6. **Learned AI** modunu seçin.
+7. Simülasyonu sıfırlayıp yeniden başlatın.
+8. Oluşan rotayı ve GPM değerini karşılaştırın.
+
+## Basitleştirmeler
+
+Bu proje gerçek Dota oynanışını birebir simüle etmeyi amaçlamaz.
+
+Simülatörde aşağıdaki mekanikler bulunmaz:
+
+- Gerçek harita geometrisi
+- Ağaçlar ve uçurumlar
+- Pathfinding
+- Görüş sistemi
+- Neutral creep yetenekleri
+- Camp stacking
+- Pulling
+- Kahraman yetenekleri
+- Gerçek Dota savaş mekanikleri
+
+Kamplar arasındaki hareket, düz çizgi mesafesi kullanılarak hesaplanır.
+
+Projenin temel amacı **reinforcement learning ve rota optimizasyonu** üzerine deney yapmaktır.
+
+## Gelecekte Eklenebilecekler
+
+Projeye ileride şu özellikler eklenebilir:
+
+- Daha doğru harita geometrisi
+- Pathfinding
+- Farklı kamp türleri için farklı ödüller
+- Eğitilmiş Q-table'ları kaydetme ve yükleme
+- Eğitim performans grafikleri
+- Camp stacking
+- Birden fazla kahraman
+- Daha gerçekçi savaş sistemi
+- Farklı reinforcement learning algoritmalarıyla karşılaştırma
+
+## Yasal Uyarı
+
+Bu proje, Dota tarzı jungle farming mekaniklerinden esinlenmiş bağımsız ve eğitim amaçlı bir projedir.
+
+Dota ve ilişkili isimler ilgili hak sahiplerine aittir.
+
+Bu proje Valve Corporation ile bağlantılı değildir ve Valve Corporation tarafından desteklenmemektedir.
+
+## Lisans
+
+Bu proje **GNU General Public License v3.0 (GPL-3.0)** altında lisanslanmıştır.
+
+Detaylar için `LICENSE` dosyasına bakınız.
