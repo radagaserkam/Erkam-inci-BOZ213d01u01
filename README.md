@@ -107,20 +107,20 @@ If the damage value is changed, the AI must be trained again.
 Clone the repository:
 
 ```bash
-git clone https://github.com/YOUR_USERNAME/YOUR_REPOSITORY.git
-cd YOUR_REPOSITORY
+git clone https://github.com/radagaserkam/Erkam-inci-BOZ213d01u01.git
+cd Erkam-inci-BOZ213d01u01
 ```
 
 Run the program:
 
 ```bash
-python dota_farming_rl_compact.py
+python dota 2 AI train.py
 ```
 
 or:
 
 ```bash
-python3 dota_farming_rl_compact.py
+python3 dota 2 AI train.py
 ```
 
 ## Requirements
@@ -188,5 +188,8 @@ Dota and related names are the property of their respective owners.
 This project is not affiliated with or endorsed by Valve Corporation.
 
 ## License
+This project is licensed under the" GNU General Public License v3.0" License.
+
+See the LICENSE file for details.
 This project is licensed under the" GNU General Public License v3.0" License.
 See the `LICENSE` file for details.
