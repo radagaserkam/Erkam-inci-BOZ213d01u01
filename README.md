@@ -142,14 +142,14 @@ The reinforcement learning implementation itself uses only Python's standard lib
 Clone the repository:
 
 ```bash
-git clone https://github.com/YOUR_USERNAME/YOUR_REPOSITORY.git
-cd YOUR_REPOSITORY
+git clone https://github.com/radagaserkam/Erkam-nci-BOZ213d01u01.git
+cd Erkam-nci-BOZ213d01u01
 ```
 
 Run the program:
 
 ```bash
-python main.py
+python "dota 2 AI train.py"
 ```
 
 Depending on your system, you may need to use:
