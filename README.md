@@ -9,7 +9,7 @@ A Dota-inspired jungle farming simulator using Q-learning to learn and visualize
 
 ## Preview
 
-![Dota Farming RL Screenshot](simulator.png)
+![Dota Farming RL Screenshot](dota2 RL game screenshot .png)
 
 ## Language
 
