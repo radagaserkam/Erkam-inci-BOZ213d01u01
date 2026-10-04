@@ -1,3 +1,8 @@
+![Python](https://img.shields.io/badge/Python-3.10%2B-blue)
+![License](https://img.shields.io/badge/License-GPLv3-green)
+![Q-Learning](https://img.shields.io/badge/AI-Q--Learning-purple)
+![GUI](https://img.shields.io/badge/GUI-Tkinter-lightgrey)
+
 # Erkam-inci-BOZ213d01u01
 
 A Dota-inspired jungle farming simulator using Q-learning to learn and visualize efficient farming routes.
