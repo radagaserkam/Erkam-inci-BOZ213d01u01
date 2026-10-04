@@ -7,6 +7,10 @@
 
 A Dota-inspired jungle farming simulator using Q-learning to learn and visualize efficient farming routes.
 
+## Preview
+
+![Dota Farming RL Screenshot](simulator.png)
+
 ## Language
 
 [English](#english) | [Türkçe](#türkçe) | [Русский](#русский)
